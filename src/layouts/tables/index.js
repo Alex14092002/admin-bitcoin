@@ -1,43 +1,84 @@
-/**
-=========================================================
-* Material Dashboard 2 React - v2.2.0
-=========================================================
-
-* Product Page: https://www.creative-tim.com/product/material-dashboard-react
-* Copyright 2023 Creative Tim (https://www.creative-tim.com)
-
-Coded by www.creative-tim.com
-
- =========================================================
-
-* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-*/
-
-// @mui material components
+// Import các components từ Material UI
+import React, { useState, useEffect } from "react";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
+import Modal from "@mui/material/Modal";
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
 
-// Material Dashboard 2 React components
+// Import các components từ project của bạn
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
-
-// Material Dashboard 2 React example components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-import DashboardNavbar from "examples/Navbars/DashboardNavbar";
-import Footer from "examples/Footer";
-import DataTable from "examples/Tables/DataTable";
-
-// Data
-import authorsTableData from "layouts/tables/data/authorsTableData";
-import projectsTableData from "layouts/tables/data/projectsTableData";
+import "./table.css"; // Đảm bảo bạn đã tạo file CSS này
 
 function Tables() {
-  const { columns, rows } = authorsTableData();
-  const { columns: pColumns, rows: pRows } = projectsTableData();
+  const [data, setData] = useState([]);
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const getData = async () => {
+    const res = await fetch(`https://server-bitcoin.vercel.app/api/user`);
+    const dataAPI = await res.json();
+    setData(dataAPI);
+  };
+  useEffect(() => {
+    getData();
+  }, []);
+
+  const handleOpenModal = (userId) => {
+    setSelectedUserId(userId);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setDepositAmount("");
+  };
+  const handleDepositSubmit = async () => {
+    console.log(selectedUserId);
+    try {
+      // Parse depositAmount to a float and make sure it's a valid number
+      const amount = parseFloat(depositAmount);
+      if (isNaN(amount) || amount <= 0) {
+        alert("Vui lòng nhập một số tiền hợp lệ.");
+        return;
+      }
+      console.log(amount);
+
+      const response = await fetch(
+        `https://server-bitcoin.vercel.app/api/user/addbalance/${selectedUserId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // Bạn có thể cần thêm token hoặc header khác tùy thuộc vào API của bạn
+          },
+          body: JSON.stringify({ amount }),
+        }
+      );
+
+      if (!response.ok) {
+        // Nếu server response không ok, throw error để bắt ở catch block
+        throw new Error("Network response was not ok.");
+      }
+
+      const data = await response.json(); // Hoặc xử lý response phù hợp với API của bạn
+
+      console.log("Nạp tiền thành công:", data);
+      alert("Nạp tiền thành công.");
+      getData();
+      handleCloseModal();
+      // Cập nhật lại state nếu cần thiết, ví dụ: setData(...)
+    } catch (error) {
+      console.error("Có lỗi xảy ra khi nạp tiền:", error);
+      alert("Có lỗi xảy ra khi nạp tiền. Vui lòng thử lại.");
+    }
+  };
 
   return (
     <DashboardLayout>
-      <DashboardNavbar />
       <MDBox pt={6} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
@@ -53,50 +94,59 @@ function Tables() {
                 coloredShadow="info"
               >
                 <MDTypography variant="h6" color="white">
-                  Authors Table
+                  Danh sách tài khoản
                 </MDTypography>
               </MDBox>
               <MDBox pt={3}>
-                <DataTable
-                  table={{ columns, rows }}
-                  isSorted={false}
-                  entriesPerPage={false}
-                  showTotalEntries={false}
-                  noEndBorder
-                />
-              </MDBox>
-            </Card>
-          </Grid>
-          <Grid item xs={12}>
-            <Card>
-              <MDBox
-                mx={2}
-                mt={-3}
-                py={3}
-                px={2}
-                variant="gradient"
-                bgColor="info"
-                borderRadius="lg"
-                coloredShadow="info"
-              >
-                <MDTypography variant="h6" color="white">
-                  Projects Table
-                </MDTypography>
-              </MDBox>
-              <MDBox pt={3}>
-                <DataTable
-                  table={{ columns: pColumns, rows: pRows }}
-                  isSorted={false}
-                  entriesPerPage={false}
-                  showTotalEntries={false}
-                  noEndBorder
-                />
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>Số dư</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map((user) => (
+                      <tr key={user._id}>
+                        <td>{user.email}</td>
+                        <td>{user.balance.toLocaleString()} VND</td>
+                        <td>
+                          <button onClick={() => handleOpenModal(user._id)}>Nạp tiền</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </MDBox>
             </Card>
           </Grid>
         </Grid>
       </MDBox>
-      <Footer />
+      <Modal
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        aria-labelledby="deposit-modal"
+        aria-describedby="modal-modal-description"
+      >
+        <Box className="modal-box">
+          <h2 id="deposit-modal-title">Nạp tiền</h2>
+          <TextField
+            label="Số tiền"
+            type="number"
+            fullWidth
+            variant="outlined"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            InputProps={{
+              endAdornment: <span>VND</span>,
+            }}
+          />
+          <Button onClick={handleDepositSubmit} variant="contained" color="primary">
+            Xác nhận
+          </Button>
+        </Box>
+      </Modal>
     </DashboardLayout>
   );
 }
